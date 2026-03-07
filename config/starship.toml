@@ -1,0 +1,110 @@
+format = """
+[](fg:green)\
+$directory\
+$git_branch\
+$git_status\
+$rust\
+$golang\
+$python\
+$nodejs\
+$docker_context\
+$cmd_duration\
+$line_break\
+$character"""
+
+right_format = """$jobs$time"""
+
+palette = "gruvbox"
+
+[palettes.nord]
+blue = "#5E81AC"
+yellow = "#EBCB8B"
+green = "#A3BE8C"
+purple = "#B48EAD"
+red = "#BF616A"
+fg = "#4C566A"
+bg = "#2E3440"
+
+[palettes.catppuccin]
+blue = "#89B4FA"
+yellow = "#F9E2AF"
+green = "#A6E3A1"
+purple = "#CBA6F7"
+red = "#F38BA8"
+fg = "#6C7086"
+bg = "#1E1E2E"
+
+[palettes.tokyo-night]
+blue = "#7AA2F7"
+yellow = "#E0AF68"
+green = "#9ECE6A"
+purple = "#BB9AF7"
+red = "#F7768E"
+fg = "#565F89"
+bg = "#1A1B26"
+
+[palettes.gruvbox]
+blue = "#458588"
+yellow = "#D79921"
+green = "#98971A"
+purple = "#B16286"
+red = "#CC241D"
+fg = "#928374"
+bg = "#282828"
+
+[os]
+disabled = true
+
+[directory]
+format = "[ $path ](bg:green fg:bg bold)[](fg:green) "
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+symbol = ""
+format = "[](fg:yellow)[ $symbol $branch](bg:yellow fg:bg)"
+
+[git_status]
+format = "[$all_status$ahead_behind ](bg:yellow fg:bg)[](fg:yellow) "
+
+[rust]
+symbol = "🦀"
+format = "[](fg:blue)[ $symbol $version ](bg:blue fg:bg)[](fg:blue) "
+
+[golang]
+symbol = ""
+format = "[](fg:blue)[ $symbol $version ](bg:blue fg:bg)[](fg:blue) "
+
+[python]
+symbol = ""
+format = "[](fg:blue)[ $symbol $version ](bg:blue fg:bg)[](fg:blue) "
+
+[nodejs]
+symbol = ""
+format = "[](fg:blue)[ $symbol $version ](bg:blue fg:bg)[](fg:blue) "
+
+[docker_context]
+symbol = "󰡨"
+format = "[](fg:purple)[ $symbol $context ](bg:purple fg:bg)[](fg:purple) "
+
+[cmd_duration]
+min_time = 500
+format = "[](fg:purple)[ 󰔟 $duration ](bg:purple fg:bg)[](fg:purple)"
+
+[jobs]
+symbol = "󰠜 "
+style = "fg:yellow"
+format = "[$symbol$number ]($style)"
+
+[time]
+disabled = false
+time_format = "%H:%M"
+style = "fg:fg"
+format = "[$time ]($style)"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[line_break]
+disabled = false

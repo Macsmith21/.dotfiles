@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+# Theme switcher for terminal rice
+# Usage: theme-switch [nord|catppuccin|tokyo-night|gruvbox|next|list]
+
+THEMES=("nord" "catppuccin" "tokyo-night" "gruvbox")
+ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
+STARSHIP_CONFIG="$HOME/.config/starship.toml"
+KONSOLE_PROFILE="$HOME/.local/share/konsole/Nord.profile"
+WALLPAPER_DIR="$HOME/.local/share/wallpapers/themes"
+CURRENT_FILE="$HOME/.config/.current-theme"
+
+# Map theme names to alacritty theme files
+declare -A THEME_FILES
+THEME_FILES[nord]="nord.toml"
+THEME_FILES[catppuccin]="catppuccin-mocha.toml"
+THEME_FILES[tokyo-night]="tokyo-night.toml"
+THEME_FILES[gruvbox]="gruvbox.toml"
+
+# Map theme names to Konsole color scheme names
+declare -A KONSOLE_SCHEMES
+KONSOLE_SCHEMES[nord]="Nord"
+KONSOLE_SCHEMES[catppuccin]="Catppuccin-Mocha"
+KONSOLE_SCHEMES[tokyo-night]="Tokyo-Night"
+KONSOLE_SCHEMES[gruvbox]="Gruvbox"
+
+# Map theme names to Kvantum themes (if installed)
+declare -A KVANTUM_THEMES
+KVANTUM_THEMES[nord]="Nordic-Darker"
+KVANTUM_THEMES[catppuccin]="catppuccin-mocha-blue"
+KVANTUM_THEMES[tokyo-night]="KvDark"
+KVANTUM_THEMES[gruvbox]="Gruvbox"
+
+# Map theme names to Plasma color schemes
+declare -A PLASMA_COLORS
+PLASMA_COLORS[nord]="Nordic"
+PLASMA_COLORS[catppuccin]="CatppuccinMocha"
+PLASMA_COLORS[tokyo-night]="TokyoNight"
+PLASMA_COLORS[gruvbox]="GruvboxDark"
+
+# Map theme names to Plasma desktop themes
+declare -A PLASMA_THEMES
+PLASMA_THEMES[nord]="glassy-dark"
+PLASMA_THEMES[catppuccin]="glassy-dark"
+PLASMA_THEMES[tokyo-night]="glassy-dark"
+PLASMA_THEMES[gruvbox]="glassy-dark"
+
+# Map theme names to icon themes
+declare -A ICON_THEMES
+ICON_THEMES[nord]="Nordic-darker"
+ICON_THEMES[catppuccin]="Papirus-Dark"
+ICON_THEMES[tokyo-night]="Papirus-Dark"
+ICON_THEMES[gruvbox]="Papirus-Dark"
+
+# Map theme names to GTK themes
+declare -A GTK_THEMES
+GTK_THEMES[nord]="Nordic-darker"
+GTK_THEMES[catppuccin]="catppuccin-mocha-blue-standard+default"
+GTK_THEMES[tokyo-night]="Breeze-Dark"
+GTK_THEMES[gruvbox]="Breeze-Dark"
+
+# Map theme names to cursor themes
+declare -A CURSOR_THEMES
+CURSOR_THEMES[nord]="Nordic-cursors"
+CURSOR_THEMES[catppuccin]="Nordic-cursors"
+CURSOR_THEMES[tokyo-night]="Nordic-cursors"
+CURSOR_THEMES[gruvbox]="Nordic-cursors"
+
+# Map theme names to VS Code themes
+declare -A VSCODE_THEMES
+VSCODE_THEMES[nord]="Nord"
+VSCODE_THEMES[catppuccin]="Catppuccin Mocha"
+VSCODE_THEMES[tokyo-night]="Tokyo Night"
+VSCODE_THEMES[gruvbox]="Gruvbox Dark Medium"
+
+# Map theme names to btop themes
+declare -A BTOP_THEMES
+BTOP_THEMES[nord]="/usr/share/btop/themes/nord.theme"
+BTOP_THEMES[catppuccin]="$HOME/.config/btop/themes/catppuccin_mocha.theme"
+BTOP_THEMES[tokyo-night]="/usr/share/btop/themes/tokyo-night.theme"
+BTOP_THEMES[gruvbox]="/usr/share/btop/themes/gruvbox_dark.theme"
+
+get_current() {
+    if [[ -f "$CURRENT_FILE" ]]; then
+        cat "$CURRENT_FILE"
+    else
+        echo "nord"
+    fi
+}
+
+get_next() {
+    local current
+    current=$(get_current)
+    for i in "${!THEMES[@]}"; do
+        if [[ "${THEMES[$i]}" == "$current" ]]; then
+            local next_idx=$(( (i + 1) % ${#THEMES[@]} ))
+            echo "${THEMES[$next_idx]}"
+            return
+        fi
+    done
+    echo "${THEMES[0]}"
+}
+
+set_wallpaper() {
+    local theme="$1"
+    local wallpaper=""
+
+    # Find wallpaper file (try jpg then png)
+    for ext in jpg png jpeg; do
+        if [[ -f "$WALLPAPER_DIR/$theme.$ext" ]]; then
+            wallpaper="$WALLPAPER_DIR/$theme.$ext"
+            break
+        fi
+    done
+
+    if [[ -z "$wallpaper" ]]; then
+        echo "  No wallpaper found for $theme (place one at $WALLPAPER_DIR/$theme.jpg)"
+        return
+    fi
+
+    # Set wallpaper via Plasma DBus
+    local script="
+        var allDesktops = desktops();
+        for (var i = 0; i < allDesktops.length; i++) {
+            var d = allDesktops[i];
+            d.wallpaperPlugin = 'org.kde.image';
+            d.currentConfigGroup = ['Wallpaper', 'org.kde.image', 'General'];
+            d.writeConfig('Image', 'file://$wallpaper');
+        }
+    "
+    qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "$script" 2>/dev/null
+    echo "  Wallpaper set"
+}
+
+apply_theme() {
+    local theme="$1"
+    local theme_file="${THEME_FILES[$theme]}"
+
+    if [[ -z "$theme_file" ]]; then
+        echo "Unknown theme: $theme"
+        echo "Available: ${THEMES[*]}"
+        exit 1
+    fi
+
+    local konsole_scheme="${KONSOLE_SCHEMES[$theme]}"
+
+    echo "  Switching to: $theme"
+
+    # Update alacritty (live reload picks this up instantly)
+    if [[ -f "$ALACRITTY_CONFIG" ]]; then
+        sed -i "s|import = .*|import = [\"~/.config/alacritty/themes/$theme_file\"]|" "$ALACRITTY_CONFIG"
+        echo "  Alacritty updated"
+    fi
+
+    # Update starship palette
+    sed -i "s|^palette = .*|palette = \"$theme\"|" "$STARSHIP_CONFIG"
+    echo "  Starship palette updated"
+
+    # Update Konsole profile color scheme
+    sed -i "s|^ColorScheme=.*|ColorScheme=$konsole_scheme|" "$KONSOLE_PROFILE"
+
+    # Live-switch all running Konsole sessions via DBus
+    for session in $(qdbus org.kde.konsole-* 2>/dev/null); do
+        for s in $(qdbus "$session" 2>/dev/null | grep '/Sessions/'); do
+            qdbus "$session" "$s" setProfile "Nord" 2>/dev/null
+        done
+    done
+    echo "  Konsole updated (restart for full effect)"
+
+    # Update rofi theme
+    ln -sf "$HOME/.config/rofi/themes/$theme.rasi" "$HOME/.config/rofi/theme.rasi" 2>/dev/null
+    echo "  Rofi theme updated"
+
+    # Update startpage theme
+    echo "const DESKTOP_THEME = \"$theme\";" > "$HOME/.local/share/startpage/theme-sync.js"
+    echo "  Startpage theme updated"
+
+    # Set wallpaper
+    set_wallpaper "$theme"
+
+    # Set Kvantum theme if kvantummanager is available
+    local kvantum_theme="${KVANTUM_THEMES[$theme]}"
+    if command -v kvantummanager &>/dev/null && [[ -n "$kvantum_theme" ]]; then
+        QT_QPA_PLATFORM=offscreen kvantummanager --set "$kvantum_theme" 2>/dev/null
+        echo "  Kvantum theme set"
+    fi
+
+    # Apply Plasma color scheme
+    local plasma_color="${PLASMA_COLORS[$theme]}"
+    if [[ -n "$plasma_color" ]]; then
+        plasma-apply-colorscheme "$plasma_color" 2>/dev/null
+        echo "  Plasma colors applied"
+    fi
+
+    # Apply Plasma desktop theme (panels, widgets)
+    local plasma_theme="${PLASMA_THEMES[$theme]}"
+    if [[ -n "$plasma_theme" ]]; then
+        plasma-apply-desktoptheme "$plasma_theme" 2>/dev/null
+        echo "  Plasma theme applied"
+    fi
+
+    # Apply panel layout
+    if [[ -x "$HOME/.local/bin/panel-layout" ]]; then
+        "$HOME/.local/bin/panel-layout" "$theme"
+    fi
+
+    # Apply icon theme
+    local icon_theme="${ICON_THEMES[$theme]}"
+    if [[ -n "$icon_theme" ]]; then
+        kwriteconfig6 --file kdeglobals --group Icons --key Theme "$icon_theme"
+        # Signal Plasma to reload icons
+        dbus-send --session --type=signal /KIconLoader org.kde.KIconLoader.iconChanged 2>/dev/null
+        echo "  Icon theme applied"
+    fi
+
+    # Apply GTK theme
+    local gtk_theme="${GTK_THEMES[$theme]}"
+    if [[ -n "$gtk_theme" ]]; then
+        gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" 2>/dev/null
+        # Update GTK config files
+        sed -i "s/^gtk-theme-name=.*/gtk-theme-name=$gtk_theme/" ~/.config/gtk-3.0/settings.ini 2>/dev/null
+        sed -i "s/^gtk-theme-name=.*/gtk-theme-name=$gtk_theme/" ~/.config/gtk-4.0/settings.ini 2>/dev/null
+        echo "  GTK theme applied"
+    fi
+
+    # Apply cursor theme
+    local cursor_theme="${CURSOR_THEMES[$theme]}"
+    if [[ -n "$cursor_theme" ]]; then
+        plasma-apply-cursortheme "$cursor_theme" 2>/dev/null
+        echo "  Cursor theme applied"
+    fi
+
+    # Apply VS Code theme
+    local vscode_theme="${VSCODE_THEMES[$theme]}"
+    local vscode_settings="$HOME/.config/Code/User/settings.json"
+    if [[ -n "$vscode_theme" && -f "$vscode_settings" ]]; then
+        sed -i "s|\"workbench.colorTheme\": \".*\"|\"workbench.colorTheme\": \"$vscode_theme\"|" "$vscode_settings"
+        echo "  VS Code theme applied"
+    fi
+
+    # Apply btop theme
+    local btop_theme="${BTOP_THEMES[$theme]}"
+    if [[ -n "$btop_theme" ]]; then
+        sed -i "s|^color_theme = .*|color_theme = \"$btop_theme\"|" ~/.config/btop/btop.conf 2>/dev/null
+        echo "  btop theme applied"
+    fi
+
+    # Apply cava theme
+    sed -i "s|^theme = .*|theme = $theme|" ~/.config/cava/config 2>/dev/null
+    echo "  cava theme applied"
+
+    # Apply dunst theme
+    declare -A DUNST_BG DUNST_FG
+    DUNST_BG[nord]="#2E344090"    DUNST_FG[nord]="#D8DEE9"
+    DUNST_BG[catppuccin]="#1E1E2E90" DUNST_FG[catppuccin]="#CDD6F4"
+    DUNST_BG[tokyo-night]="#1A1B2690" DUNST_FG[tokyo-night]="#C0CAF5"
+    DUNST_BG[gruvbox]="#28282890"    DUNST_FG[gruvbox]="#EBDBB2"
+    local dbg="${DUNST_BG[$theme]}" dfg="${DUNST_FG[$theme]}"
+    if [[ -f ~/.config/dunst/dunstrc ]]; then
+        sed -i "s|background = \"#.*\"|background = \"$dbg\"|g" ~/.config/dunst/dunstrc
+        sed -i "s|foreground = \"#.*\"|foreground = \"$dfg\"|g" ~/.config/dunst/dunstrc
+        killall dunst 2>/dev/null
+        echo "  dunst theme applied"
+    fi
+
+    # Save current theme
+    echo "$theme" > "$CURRENT_FILE"
+
+    echo ""
+    echo "  Done! Open a new shell for prompt changes."
+}
+
+case "${1:-}" in
+    nord|catppuccin|tokyo-night|gruvbox)
+        apply_theme "$1"
+        ;;
+    next)
+        next=$(get_next)
+        apply_theme "$next"
+        ;;
+    list)
+        current=$(get_current)
+        for t in "${THEMES[@]}"; do
+            if [[ "$t" == "$current" ]]; then
+                echo "  * $t (active)"
+            else
+                echo "    $t"
+            fi
+        done
+        ;;
+    "")
+        echo "Usage: theme-switch [theme|next|list]"
+        echo "Themes: ${THEMES[*]}"
+        echo "Current: $(get_current)"
+        ;;
+    *)
+        echo "Unknown theme: $1"
+        echo "Available: ${THEMES[*]}"
+        exit 1
+        ;;
+esac

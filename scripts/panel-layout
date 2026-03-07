@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Panel layout - macOS-style dual bar
+# Top: thin transparent info bar (rofi button, global menu, systray, clock)
+# Bottom: floating centered dock (app icons)
+
+DOCK_APPS="applications:org.kde.konsole.desktop,applications:brave-browser.desktop,applications:org.kde.dolphin.desktop,applications:code.desktop,applications:discord.desktop,applications:steam.desktop,applications:systemsettings.desktop"
+
+apply_layout() {
+    local layout="$1"
+
+    # Remove all existing panels
+    qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "
+        var ps = panels();
+        for (var i = ps.length - 1; i >= 0; i--) {
+            ps[i].remove();
+        }
+    " 2>/dev/null
+
+    sleep 0.5
+
+    qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript "
+        // === TOP BAR: thin transparent info bar ===
+        var top = new Panel('org.kde.panel');
+        top.screen = 0;
+        top.location = 'top';
+        top.alignment = 'center';
+        top.height = gridUnit * 1.5;
+        top.lengthMode = 'fill';
+        top.floating = false;
+        top.hiding = 'none';
+        top.opacity = 1;
+
+        // Simple icon button that triggers rofi
+        var launcher = top.addWidget('org.kde.plasma.kickoff');
+        launcher.currentConfigGroup = ['General'];
+        launcher.writeConfig('icon', 'cachyos');
+
+        // Global menu (shows active app menu bar like macOS)
+        top.addWidget('org.kde.plasma.appmenu');
+
+        top.addWidget('org.kde.plasma.panelspacer');
+
+        // System tray
+        top.addWidget('org.kde.plasma.systemtray');
+
+        // Clock - far right, single line with date
+        var clock = top.addWidget('org.kde.plasma.digitalclock');
+        clock.currentConfigGroup = ['Appearance'];
+        clock.writeConfig('showDate', true);
+        clock.writeConfig('dateFormat', 'shortDate');
+        clock.writeConfig('dateDisplayFormat', 'BesideTime');
+        clock.writeConfig('use24hFormat', 2);
+
+        // === BOTTOM DOCK: floating centered icon dock ===
+        var dock = new Panel('org.kde.panel');
+        dock.screen = 0;
+        dock.location = 'bottom';
+        dock.alignment = 'center';
+        dock.height = gridUnit * 3;
+        dock.lengthMode = 'fit';
+        dock.floating = true;
+        dock.hiding = 'dodgewindows';
+
+        var tasks = dock.addWidget('org.kde.plasma.icontasks');
+        tasks.currentConfigGroup = ['General'];
+        tasks.writeConfig('launchers', '$DOCK_APPS');
+        tasks.writeConfig('iconSpacing', 2);
+    " 2>/dev/null
+
+    # Set top bar transparency via plasmashellrc
+    # Find the top panel ID and set opacity
+    local panel_ids
+    panel_ids=$(grep -oP 'Panel \K\d+' ~/.config/plasmashellrc 2>/dev/null | sort -un)
+    for pid in $panel_ids; do
+        local loc
+        loc=$(kreadconfig6 --file plasmashellrc --group "PlasmaViews" --group "Panel $pid" --key panelVisibility 2>/dev/null)
+        # Set translucent opacity on all panels
+        kwriteconfig6 --file plasmashellrc --group "PlasmaViews" --group "Panel $pid" --key panelOpacity 2
+    done
+
+    echo "  Panel layout applied"
+}
+
+apply_layout "$1"

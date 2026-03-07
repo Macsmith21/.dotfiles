@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Random image fastfetch - picks from ~/Pictures
+
+PIC_DIR="$HOME/Pictures"
+
+images=()
+while IFS= read -r -d '' f; do
+    images+=("$f")
+done < <(find "$PIC_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.webp" \) -print0 2>/dev/null)
+
+if [ "${#images[@]}" -gt 0 ]; then
+    pick="${images[RANDOM % ${#images[@]}]}"
+    fastfetch --logo "$pick" --logo-type sixel --logo-height 16
+else
+    fastfetch
+fi
